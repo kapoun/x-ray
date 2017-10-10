@@ -174,7 +174,7 @@ class Dataface_RecordView {
 					if ( isset($fldgrp['permission']) and !$record->checkPermission($fldgrp['permission']) ){
 						continue;
 					}
-					$label = ucwords(str_replace('_',' ',$fldgrp['label']));
+					$label = ucfirst(str_replace('_',' ',$fldgrp['label']));
 					if ( isset($fldgrp['section']['order']) ) $order = $fldgrp['section']['order'];
 					else $order = 0;
 					if ( isset($fldgrp['section']['class']) ) $class = $fldgrp['section']['class']; 
