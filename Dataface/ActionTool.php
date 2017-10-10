@@ -83,18 +83,19 @@ class Dataface_ActionTool
    * 						to include the table name and the relationship name in one string.
    * 		category => The name of the category of actions to be retrieved.
    */
-  function getActions($params = [], $lessUsefulParameter = null)
+  function getActions($params = [], $useThese = null)
   {
-    $app = Dataface_Application::getInstance();
-    
-    $tableName = $this->getTableName($params);
-    $actions   = $lessUsefulParameter ?: $this->getTableActions($tableName);
-    $record    = @$params['record'];
-
-    if ($record instanceof Dataface_Record)
+    if ($useThese !== null)
+      $actions = $useThese;
+    else
     {
-      $params['table'] = $record->_table->tablename;
+      $tableName = $this->getTableName($params);
+      $actions = $this->getTableActions($tableName);
     }
+    
+    $record = @$params['record'];
+    if ($record instanceof Dataface_Record)
+      $params['table'] = $record->_table->tablename;
     else if ($record instanceof Dataface_RelatedRecord)
     {
       $parent = $record->getParent();
@@ -102,10 +103,9 @@ class Dataface_ActionTool
       $params['relationship'] = $record->_relationshipName;
     }
     if (@$params['relationship'] && strpos($params['relationship'], '.') !== false)
-    {
       list($params['table'], $params['relationship']) = explode('.', $params['relationship']);
-    }
 
+    $app = Dataface_Application::getInstance();
     $filteredActions = [];
     foreach ($actions as $actionName => $action)
     {
