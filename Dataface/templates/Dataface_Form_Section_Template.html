@@ -88,7 +88,7 @@
 						
 							<div>
 							{if $element.field.widget.question}
-							<div class="formHelp">{$element.field.widget.question}</div>
+							<span class="formHelp">{$element.field.widget.question}</span>
 							{/if} 
 							{define_slot name="`$element.field.name`_widget" table=$element.field.tablename}
 							{block name="before_`$element.field.name`_widget" table=$element.field.tablename}
