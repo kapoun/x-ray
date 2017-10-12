@@ -2946,17 +2946,11 @@ class Dataface_Table {
 	 * it will try to determine the singular of the label on its own.
 	 *
 	 * @return string
+   * @deprecated
 	 */
-	function getSingularLabel(){
-            if ( !@$this->_atts['singular_label'] ){
-                $this->_atts['singular_label'] = df_singularize($this->getLabel());
-            }
-            if ( !@$this->_atts['singular_label__translated'] ){
-                $this->_atts['singular_label__translated'] = true;
-                $this->_atts['singular_label'] = df_translate('tables.'.$this->tablename.'.singular_label', $this->_atts['singular_label']);
-                
-            }
-            
+	public function getSingularLabel()
+  {
+    $this->_atts['singular_label'] = 'record'; 
     return $this->_atts['singular_label'];	
 	}
 	 
