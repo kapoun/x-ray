@@ -156,7 +156,7 @@ class Dataface_ModuleTool {
 		} else if (realpath($file) == realpath(DATAFACE_PATH.$s.'modules'.$s.basename(dirname($file)).$s.basename($file)) ){ 
 			return DATAFACE_URL.'/modules/'.rawurlencode(basename(dirname($file)));
 		} else {
-			throw new Exception("Could not find URL for file $file in module tool");
+			return '/modules/'.rawurlencode(basename(dirname($file)));
 		}
 	}
 	
