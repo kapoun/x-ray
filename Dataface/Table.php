@@ -114,56 +114,64 @@ define( 'SCHEMA_TABLE_NOT_FOUND', 12);
  *
  */
 class Dataface_Table {
-	/**
-	 * @brief The name of the table that this table represents.
-	 * @type string
-	 *
-	 */
-	var $tablename;
 	
 	/**
-	 * @brief DB connection handle.
+	 * DB connection handle.
 	 * @type resource handle
 	 */
-	var $db;
+	public $db;
 	
 	/**
-	 * @brief Associative array of field definitions.  Keys are the field names.
-	 * @private
+   * Reference to the application object.
+   * @deprecated
+   * @see Dataface_Application::getInstance()
+   */
+	public $app = null;
+  
+	/**
+	 * The name of the table that this table represents.
+   * @deprecated
+   * @see Dataface_Table::getName()
 	 */
-	var $_fields = array();
+	public $tablename;
+	
+	/** Associative array that contains the attributes of this table. */
+	public $_atts;
 	
 	/**
-	 * @brief Associative array of fields that are not a part of this table, but 
-	 * have been "grafted" on by a custom query.
-	 * @private
+   * Associative array of field definitions. Keys are the field names.
+   * @deprecated
+   */
+	public $_fields = [];
+	
+	/** Associative array that contains the relationship definitions for this table. */
+	public $_relationships = [];
+	
+  
+  
+	/**
+	 * Associative array of fields that are not a part of this table, but have
+   * been "grafted" on by a custom query.
 	 */
-	var $_grafted_fields = null;
-	
+	private $_grafted_fields = null;
 	
 	/**
-	 * @brief Associative array of transient fields.  Transient fields are fields
+	 * Associative array of transient fields.  Transient fields are fields
 	 * that are not saved in the database.  The are useful for adding fields
 	 * to the edit/new record forms without having a corresponding field
 	 * in the database.
-	 * @private
 	 */
-	var $_transient_fields = null;
+	private $_transient_fields = null;
 	
 	/**
 	 * @brief If this table is a child of another table via the __isa__ clause
 	 * then this is a reference to the parent table.
 	 * @type Dataface_Table
-	 * @private
 	 */
-	var $_parentTable = null;
+	private $_parentTable = null;
 	
-	/**
-	 * @brief Stores valuelists after they've been processed.
-	 * @private
-	 */
-	var $_cookedValuelists=array();
-	
+	/** Stores valuelists after they've been processed. */
+	private $_cookedValuelists = [];
 	
 	/**
 	 * A map that can get used to register "display" fields for a column.  These
@@ -172,8 +180,7 @@ class Dataface_Table {
 	 * field for another field.  Then display() will return the value for the 
 	 * display field instead of the value field.
 	 */
-	var $_displayFields=array();
-	
+	private $_displayFields = [];
 	
 	/**
 	 * @brief A List of the tables that are join tables of this table.  A join table
@@ -195,270 +202,145 @@ class Dataface_Table {
 	 *
 	 * Please see the __join__() delegate class method if you want to be able
 	 * to change the list of join tables depending on the record.
-	 * @private
 	 */
-	var $_joinTables = null;
+	private $_joinTables = null;
 	
 	/**
-	 * @brief To contain optional SQL query to obtain records of this table.
+	 * To contain optional SQL query to obtain records of this table.
 	 * Can be specified at the top of the fields.ini file with the __sql__
 	 * parameter.
-	 * @private
 	 */
-	var $_sql;
+	private $_sql;
 	
 	/**
-	 * @brief An associative array to track the views that have been loaded to 
+	 * An associative array to track the views that have been loaded to 
 	 * read records.  This is a new feature in version 1.2 that allows 
 	 * Xataface to create a view for tables that define custom SQL.
 	 * This array is of the form:
 	 * [View Name:string] -> [isLoaded:boolean]
-	 * @private
 	 */
-	var $_proxyViews = array();
+	private $_proxyViews = [];
 	
 	/**
-	 * @brief An associative array of fields arranged by tab.  
+	 * An associative array of fields arranged by tab.  
 	 * e.g.: [tab1]=>array('field1','field2', ...)
-	 *		 [tab2]=>array('field3','field4', ...)
-	 * @private
+	 *		   [tab2]=>array('field3','field4', ...)
 	 */
-	var $_fieldsByTab = null;
+	private $_fieldsByTab = null;
 	
+	/** A cache to keep references to remote fields. */
+	private $_relatedFields = [];
+	
+	/** Associative array of groups that are used to group fields. */
+	private $_fieldgroups = [];
+	
+	/** Associative array of tabs that are used to group fields and join records. */
+	private $_tabs = [];
 	
 	/**
-	 * @brief A cache to keep references to remote fields.
-	 * @private
-	 */
-	var $_relatedFields = array();
-	
-	/**
-	 * @brief Associative array of groups that are used to group fields.
-	 * @private 
-	 */
-	var $_fieldgroups = array();
-	
-	/**
-	 * @brief Associative array of tabs that are used to group fields and join records.
-	 * @private
-	 */
-	var $_tabs = array();
-	
-	/**
-	 * @brief Associative array of field definitions for keys.  Each field definition
+	 * Associative array of field definitions for keys.  Each field definition
 	 * in this array is simply a reference to the actual field definition in the 
 	 * $_fields array.
-	 * @private
 	 */
-	var $_keys = array();
+	private $_keys = [];
 	
 	/**
 	 * @brief The name of the ini file that stores the information.
 	 * @deprecated.
-	 * @private
 	 */
-	var $_iniFile = '';
+	private $_iniFile = '';
 	
 	/**
-	 * @brief Associative array that contains the attributes of this table.
-	 * @private
-	 */
-	var $_atts;
-	
-	/**
-	 * @brief Associative array that contains the relationship definitions for this table.
-	 * @private
-	 */
-	var $_relationships = array();
-	
-	/**
-	 * @brief Array to keep track of relationship ranges to be returned.  When Dataface_Record
+	 * Array to keep track of relationship ranges to be returned.  When Dataface_Record
 	 * objects for this table return related records, these values are used as guidelines
 	 * for which range of related records should be returned.
 	 * array( [Relationship name] -> array(Lower, Upper) )
-	 * @private
 	 */
-	var $_relationshipRanges;
+	private $_relationshipRanges;
 	
-	/**
-	 * @brief The default range that is used for related records.
-	 * @private
-	 */
-	var $_defaultRelationshipRange = array(0, DATAFACE_TABLE_RECORD_RELATED_RECORD_BLOCKSIZE);
+	/** The default range that is used for related records. */
+	private $_defaultRelationshipRange = array(0, DATAFACE_TABLE_RECORD_RELATED_RECORD_BLOCKSIZE);
 	
-	/**
-	 * @brief Associative array that contains the valuelist definitions for this table.
-	 * @private
-	 */
-	var $_valuelists;
+	/** Associative array that contains the valuelist definitions for this table. */
+	private $_valuelists;
 	
-	/**
-	 * @brief Reference to a delegate object to handle customizations of behavior.
-	 * @private
-	 */
-	var $_delegate;
+	/** Reference to a delegate object to handle customizations of behavior. */
+	private $_delegate;
 	
-	/**
-	 * @brief Associative array containing status information about the table, such as when it was last updated.
-	 * @private
-	 */
-	var $status;
-	
+	/** Associative array containing status information about the table, such as when it was last updated. */
+	private $status;
 
-	/**
-	 * @type boolean
-	 * @brief Whether the relationships have been loaded or not
-	 * @private
-	 */
-	 
-	var $_relationshipsLoaded = false;
-	
+	/** Whether the relationships have been loaded or not */
+	private $_relationshipsLoaded = false;
 
-	/**
-	 * @brief Store errors that occur in methods of this class.
-	 */
-	var $errors = array();
+	/** Stores errors that occur in methods of this class. */
+	private $errors = [];
+	
+	/** Default permissions mask. */
+	private $_permissions;
+	
+	/** Reference to the serializer. */
+	private $_serializer;
 	
 	/**
-	 * @brief Default permissions mask.
-	 * @private
-	 */
-	var $_permissions;
-	
-	/**
-	 * @brief Reference to the serializer.
-	 * @private
-	 */
-	var $_serializer;
-	
-	/**
-	 * @brief Security constraints (aka filters) to be applied to all queries created by QueryBuilder.  This is an array of 
+	 * Security constraints (aka filters) to be applied to all queries created by QueryBuilder.  This is an array of 
 	 * key-value pairs [Column name] -> [Column value] so that any records NOT matching the constraint will not be
 	 * included in results.  They will be invisible.
-	 * @private
 	 */
-	var $_filters = array();
-	
+	private $_filters = [];
 	
 	/**
-	 * @brief Import filters tasked with handling importing of data into the table.
+	 * Import filters tasked with handling importing of data into the table.
 	 * @type array(Dataface_ImportFilter)
-	 * @private
 	 */
-	var $_importFilters = null;
+	private $_importFilters = null;
 	
 	/**
-	 * @brief A reference to the PEAR Config_Container object with this table's 
+	 * A reference to the PEAR Config_Container object with this table's 
 	 * configuration settings -- including comments.
-	 *
 	 * @type Config_Container
-	 * @private
 	 */
-	var $_fieldsConfig;
+	private $_fieldsConfig;
+
+	/** Flag to indicate of permissions have been loaded yet. */
+	private $_permissionsLoaded = false;
 	
-	/**
-	 * @private
-	 */
-	var $_relationshipsConfig;
+	/**  A list of column names in the metadata table. */
+	private $metadataColumns = null;
 	
-	/**
-	 * @private
-	 */
-	var $_valuelistsConfig;
-	
-	/**
-	 * @private
-	 */
-	var $_actionsLoaded = false;
-	
-	/**
-	 * @private
-	 */
-	var $_actionsConfig = null;
-	
-	// reference to application object
-	/**
-	 * @private
-	 */
-	var $app = null;
-	
-	
-	/**
-	 * @brief flag to indicate of permissions have been loaded yet
-	 * @private
-	 */
-	var $_permissionsLoaded = false;
-	
-	/**
-	 * @private
-	 */
-	var $translations = null;
-	
-	
-	/**
-	 * @private
-	 */
-	var $_cache = array();
-	
-	/**
-	 * @brief A list of column names in the metadata table.
-	 * @private
-	 */
-	var $metadataColumns = null;
-	
-	/**
-	 * @brief A query array of security terms to secure queries made on this table.
-	 * @private
-	 */
-	var $_securityFilter = array();
-	
-	/**
-	 * @private
-	 */
-	var $_securityFilterLoaded = false;
-	
-	
+	/** A query array of security terms to secure queries made on this table. */
+	private $_securityFilter = [];
+		
 	/**
 	 * Summary information.  These track useful information like which field
 	 * contains the description of the record or the last modified date, etc..
 	 * In essence this is like the dublin core info.
 	 */
-	/**
-	 * @private
-	 */
-	var $descriptionField;
+	private $descriptionField;
+  
+	private $_cache = [];
+	private $_global_field_properties;
+	private $_relationshipsConfig;
+	private $_valuelistsConfig;
+	private $createdField;
+	private $creatorField;
+	private $lastUpdatedField;
+	private $bodyField;
+	private $versionField = -1;
+	private $translations = null;
 	
-	/**
-	 * @private
-	 */
-	var $createdField;
+	/** @deprecated */
+	private $_actionsConfig = null;
 	
-	/**
-	 * @private
-	 */
-	var $creatorField;
-	
-	/**
-	 * @private
-	 */
-	var $lastUpdatedField;
-	
-	/**
-	 * @private
-	 */
-	var $publicLinkTemplate;
-	
-	/**
-	 * @private
-	 */
-	var $bodyField;
-	
-	var $versionField = -1;
-	
-	/**
-	 * @private
-	 */
-	var $_global_field_properties;
+	/** @deprecated */
+	private $_actionsLoaded = false;
+  
+	/** @deprecated */
+	private $_securityFilterLoaded = false;
+  
+	/** @deprecated */
+	private $publicLinkTemplate;
+  
 	//----------------------------------------------------------------------------------------------
 	// @{
 	/**
@@ -489,7 +371,7 @@ class Dataface_Table {
 		
 		if ( $db === null ) $db = Dataface_Application::getInstance()->db();
 		if ( !isset( $_tables ) ){
-			static $_tables = array();
+			static $_tables = [];
 			
 			static $_db = '';
 		}
@@ -544,7 +426,7 @@ class Dataface_Table {
 		$this->tablename = str_replace(' ', '', $this->tablename);
 			// prevent malicious SQL injection
 			
-		$this->_atts = array();
+		$this->_atts = [];
 		$this->_atts['name'] = $this->tablename;
 
 		$this->_atts['label'] = (isset( $this->app->_tables[$this->tablename] ) ? $this->app->_tables[$this->tablename] : $this->tablename);
@@ -600,7 +482,7 @@ class Dataface_Table {
 					
 					
 					
-					$widget = array();
+					$widget = [];
 					$widget['label'] = ucfirst(str_replace('_',' ',$row['Field']));
 					$widget['description'] = '';
 					$widget['label_i18n'] = $this->tablename.'.'.$row['Field'].'.label';
@@ -610,7 +492,7 @@ class Dataface_Table {
 					$widget['helper_js'] = '';
 					$widget['type'] = 'text';
 					$widget['class'] = '';
-					$widget['atts'] = array();
+					$widget['atts'] = [];
 					if ( preg_match( '/text/', $row['Type']) ){
 						$widget['type'] = 'textarea';
 					} else if  ( preg_match( '/blob/', $row['Type']) ){
@@ -626,7 +508,7 @@ class Dataface_Table {
 					$row['tableta'] = 'default';
 					$row['vocabulary'] = '';
 					$row['enforceVocabulary'] = false;
-					$row['validators'] = array();
+					$row['validators'] = [];
 					$row['name'] = $row['Field'];
 					$row['permissions'] = Dataface_PermissionsTool::getRolePermissions($this->app->_conf['default_field_role']);
 					$row['repeat'] = false;
@@ -660,7 +542,7 @@ class Dataface_Table {
 			// check for obvious field types
 			$fieldnames = array_keys($this->_fields);
 			foreach ($fieldnames as $key){
-				$matches = array();
+				$matches = [];
 	
 				if ( preg_match( '/^(.*)_mimetype$/', $key, $matches) and 
 					isset( $this->_fields[$matches[1]] ) /*and 
@@ -736,13 +618,13 @@ class Dataface_Table {
 		
 			
 			// handle case where this is an enumerated field
-			$matches = array();
+			$matches = [];
 			if ( preg_match('/^(enum|set)\(([^\)]+)\)$/', $row['Type'], $matches )){
 
 				$valuelists =& $this->valuelists();
 				$options = explode(',', $matches[2]);
 				
-				$vocab = array();
+				$vocab = [];
 				foreach ( $options as $val){
 					$val = substr($val,1,strlen($val)-2); // strip off the quotes
 					$vocab[$val] = $val;
@@ -937,7 +819,7 @@ class Dataface_Table {
 	public static function tableExists($tablename, $usecache=true){
 		$app =& Dataface_Application::getInstance();
 		static $index = 0;
-		if ($index === 0 ) $index = array();
+		if ($index === 0 ) $index = [];
 		if ( !isset($index[$tablename]) or !$usecache ) {
 			$index[$tablename] = xf_db_num_rows(xf_db_query("show tables like '".addslashes($tablename)."'", $app->db()));
 		}
@@ -1090,7 +972,7 @@ class Dataface_Table {
 	 *
 	 */
 	function guessField($types, $patterns, $forcePattern=false){
-		$candidates = array();
+		$candidates = [];
 		$max = null;
 		foreach ($this->fields(false,true) as $field){
 			$type = strtolower($this->getType($field['name']));
@@ -1289,7 +1171,7 @@ class Dataface_Table {
 	 */
 	function &getIndexes(){
 		if ( !isset( $this->_indexes) ){
-			$this->_indexes = array();
+			$this->_indexes = [];
 			$res = xf_db_query("SHOW index FROM `".$this->tablename."`", $this->db);
 			if ( !$res ){
 				throw new Exception("Failed to get index list due to a mysql error: ".xf_db_error($this->db), E_USER_ERROR);
@@ -1297,11 +1179,11 @@ class Dataface_Table {
 			
 			while ( $row = xf_db_fetch_array($res) ){
 				if ( !isset( $this->_indexes[ $row['Key_name'] ] ) )
-					$this->_indexes[ $row['Key_name'] ] = array();
+					$this->_indexes[ $row['Key_name'] ] = [];
 				$index =& $this->_indexes[$row['Key_name']];
 				$index['name'] = $row['Key_name'];
 				if ( !isset( $index['columns'] ) )
-					$index['columns'] = array();
+					$index['columns'] = [];
 				$index['columns'][] = $row['Column_name'];
 				$index['unique'] = ( $row['Non_unique'] ? false : true );
 				$index['type'] = $row['Index_type'];
@@ -1330,7 +1212,7 @@ class Dataface_Table {
 	function getFullTextIndexedFields(){
 		
 		$indexes =& $this->getIndexes();
-		$fields = array();
+		$fields = [];
 		foreach ( array_keys($indexes) as $indexName ){
 			if ( strtolower($indexes[$indexName]['type']) === 'fulltext' ){
 				foreach ( $indexes[$indexName]['columns'] as $col ){
@@ -1354,7 +1236,7 @@ class Dataface_Table {
 	 */
 	function getCharFields($includeGraftedFields=false, $excludeUnsearchable=false){
 		if ( !isset($this->_cache[__FUNCTION__]) ){
-			$out = array();
+			$out = [];
 			foreach ( array_keys($this->fields(false, $includeGraftedFields)) as $field){
 				if ( $this->isChar($field) or $this->isText($field) or (strtolower($this->getType($field)) == 'enum') or ($this->getType($field) == 'container') ){
 					if ( $excludeUnsearchable and !$this->isSearchable($field) ) continue;
@@ -1432,7 +1314,7 @@ class Dataface_Table {
 			}
 			if ( !$res ) throw new Exception(xf_db_error($this->db), E_USER_ERROR);
 			if ( xf_db_num_rows($res) == 0 ) throw new Exception("No metadata table set up for table '{$this->tablename}'", E_USER_ERROR);
-			$this->metadataColumns = array();
+			$this->metadataColumns = [];
 			while ($row = xf_db_fetch_assoc($res) ){
 				if ( substr($row['Field'],0,2) == '__' ){
 					$this->metadataColumns[] =  $row['Field'];
@@ -1506,7 +1388,7 @@ class Dataface_Table {
 			if ( !isset($this->_cache[__FUNCTION__][intval($includeGrafted)][intval($includeTransient)]) ){
 				//return $this->_cache[intval($includeGrafted)][intval($includeTransient)];
 				
-				$fields = array();
+				$fields = [];
 				
 				if ( $includeGrafted ){
 					$grafted_fields =& $this->graftedFields();
@@ -1538,14 +1420,14 @@ class Dataface_Table {
 		}
 		else {
 			if ( !isset( $this->_fieldsByTab ) ){
-				$this->_fieldsByTab = array();
+				$this->_fieldsByTab = [];
 				
 				foreach ( $this->fields(false,$includeGrafted, $includeTransient) as $field){
 				
 					$tab = ( isset( $field['tab'] ) ? $field['tab'] : '__default__');
 					
 					if ( !isset( $this->_fieldsByTab[ $tab] ) ){
-						$this->_fieldsByTab[ $tab ] = array();
+						$this->_fieldsByTab[ $tab ] = [];
 					}
 					$this->_fieldsByTab[ $tab ][$field['name']] = $field;
 				
@@ -1589,10 +1471,10 @@ class Dataface_Table {
 		if ( !isset($this->_cache[__FUNCTION__][intval($includeParent)]) ){
 		//if ( !isset($this->_grafted_fields) ){
 			
-			$this->_grafted_fields = array();
+			$this->_grafted_fields = [];
 			if (isset($tsql)){
 			
-				$this->_grafted_fields = array();
+				$this->_grafted_fields = [];
 				import('SQL/Parser.php');
 				$parser = new SQL_Parser(null,'MySQL');
 				$data = $parser->parse($tsql);
@@ -1638,11 +1520,11 @@ class Dataface_Table {
 	function &transientFields($includeParent=false){
 		if ( !isset($this->_cache[__FUNCTION__][intval($includeParent)]) ){
 			if ( !isset($this->_transient_fields) ){
-				$this->_transient_fields = array();
+				$this->_transient_fields = [];
 				foreach ( $this->_atts as $fieldname=>$field ){
 					if ( !is_array($field) ) continue;
 					if ( @$field['transient'] ){
-						$curr = array();
+						$curr = [];
 						$this->_parseINISection($field, $curr);
 						if ( @$curr['relationship'] ) $curr['repeat'] = 1;
 	
@@ -1690,7 +1572,7 @@ class Dataface_Table {
 	function &delegateFields($includeParent=false){
 		if ( !isset($this->_cache[__FUNCTION__][intval($includeParent)]) ){
 		//if ( !isset($this->_transient_fields) ){
-			$fields = array();
+			$fields = [];
 			
 			$del =& $this->getDelegate();
 			if ( isset($del) ){
@@ -1865,7 +1747,7 @@ class Dataface_Table {
 	 *
 	 */
 	function &mandatoryFields(){
-		$fields = array();
+		$fields = [];
 		foreach ( array_keys($this->keys()) as $key){
 			if ( $this->_fields[$key]['Extra'] == 'auto_increment') continue;
 			$fields[ $key ] =& $this->_fields[$key];
@@ -1941,7 +1823,7 @@ class Dataface_Table {
 		
 		$schema = array("Field"=>$fieldname, "Type"=>$type, "Null"=>'', "Key"=>'', "Default"=>'', "Extra"=>'');
 		$schema = array_merge_recursive_unique($this->_global_field_properties, $schema);
-		$widget = array();
+		$widget = [];
 		$widget['label'] = ucfirst($schema['Field']);
 		$widget['description'] = '';
 		$widget['label_i18n'] = $tablename.'.'.$fieldname.'.label';
@@ -1951,7 +1833,7 @@ class Dataface_Table {
 		$widget['helper_js'] = '';
 		$widget['class'] = '';
 		$widget['type'] = 'text';
-		$widget['atts'] = array();	//html attributes
+		$widget['atts'] = [];	//html attributes
 		if ( preg_match( '/text/', $schema['Type']) ){
 			$widget['type'] = 'textarea';
 		} else if  ( preg_match( '/blob/', $schema['Type']) ){
@@ -1964,7 +1846,7 @@ class Dataface_Table {
 		$schema['tableta'] = 'default';
 		$schema['vocabulary'] = '';
 		$schema['enforceVocabulary'] = false;
-		$schema['validators'] = array();
+		$schema['validators'] = [];
 		$schema['name'] = $schema['Field'];
 		$schema['permissions'] = $permissions;
 		$schema['repeat'] = false;
@@ -2085,7 +1967,7 @@ class Dataface_Table {
 			// this field is from a relationship.
 			
 			// first check the cache
-			if ( !isset( $this->_relatedFields[$path[0]] ) ) $this->_relatedFields[$path[0]] = array();
+			if ( !isset( $this->_relatedFields[$path[0]] ) ) $this->_relatedFields[$path[0]] = [];
 			if ( !isset( $this->_relatedFields[$path[0]][$path[1]] ) ) {
 				
 				$relationship =& $this->getRelationship($path[0]);
@@ -2124,7 +2006,7 @@ class Dataface_Table {
 	 * @see getField()
 	 * @see fields()
 	 */
-	function getFieldProperty($propertyName, $fieldname, $params=array()){
+	function getFieldProperty($propertyName, $fieldname, $params = []){
 		$field =& $this->getField($fieldname);
 		
 		if ( $field['tablename'] != $this->tablename ){
@@ -2190,7 +2072,7 @@ class Dataface_Table {
 	private static $globalFieldsConfig = null;
 	public static function &getGlobalFieldsConfig(){
 		if ( !isset(self::$globalFieldsConfig) ){
-			//self::$globalFieldsConfig = array();
+			//self::$globalFieldsConfig = [];
 			import( 'Dataface/ConfigTool.php');
 			$configTool =& Dataface_ConfigTool::getInstance();
 			self::$globalFieldsConfig =& $configTool->loadConfig('fields', null);
@@ -2220,9 +2102,9 @@ class Dataface_Table {
 			$appDel->decorateFieldsINI($conf, $this);
 		}
 		
-		$this->_global_field_properties = array();
+		$this->_global_field_properties = [];
 		if ( isset($conf['__global__']) ) $this->_parseINISection($conf['__global__'], $this->_global_field_properties);
-		else $this->_global_field_properties = array();
+		else $this->_global_field_properties = [];
 		//print_r($this->_fields);
 		foreach ($this->_fields as $key=>$val){
 			if ( isset($conf[$key]) ){
@@ -2233,7 +2115,7 @@ class Dataface_Table {
 			//$conf[$key] = array_merge_recursive_unique($this->_global_field_properties, $conf[$key]);
 		}
 		
-		$selectors = array();
+		$selectors = [];
 		
 		foreach ($conf as $key=>$value ){
 			if ( $key == '__sql__' and !is_array($value) ){
@@ -2246,7 +2128,7 @@ class Dataface_Table {
 			    $selectors[$key] = $value;
 			    foreach ($this->_fields as $fkey=>$fval) {
 			        if (isset($fval['Type']) and $key === 'Type='.$fval['Type']) {
-			            $selParsed = array();
+			            $selParsed = [];
 			            $this->_parseINISection($value, $selParsed);
 			            $this->_fields[$fkey] = array_merge_recursive_unique($this->_fields[$fkey], $selParsed);
 			        }
@@ -2289,7 +2171,7 @@ class Dataface_Table {
 			/*
 			 * Iterate through all of the fields.
 			 */
-			$matches = array(); // temp holder for preg matches
+			$matches = []; // temp holder for preg matches
 			if ( preg_match('/fieldgroup:(.+)/', $key, $matches) ){
 				// This is a group description - not a field description
 				$this->_fieldgroups[trim($matches[1])] = $value;
@@ -2365,7 +2247,7 @@ class Dataface_Table {
 				}
 				
 				$field =& $this->_fields[$parent];
-				if ( !isset($field['fields']) ) $field['fields'] = array();
+				if ( !isset($field['fields']) ) $field['fields'] = [];
 				$curr = $this->_newSchema('varchar(255)', $child);
 				
 				$this->_parseINISection($value, $curr);
@@ -2434,7 +2316,7 @@ class Dataface_Table {
 									continue;
 								}
 								if ( !isset( $validators[ $attpath[1] ] ) ){
-									$validators[ $attpath[1] ] = array();
+									$validators[ $attpath[1] ] = [];
 								}
 								if ( count( $attpath ) <= 2 ){
 									$validators[ $attpath[1] ]['arg'] = trim($attval);
@@ -2639,7 +2521,7 @@ class Dataface_Table {
 	function setSecurityFilter($filter=null){
 		
 		if ( !isset($filter)){
-			$filter = array();
+			$filter = [];
 			$app =& Dataface_Application::getInstance();
 			$query =& $app->getQuery();
 			if ( class_exists('Dataface_AuthenticationTool') ){
@@ -2675,7 +2557,7 @@ class Dataface_Table {
 	 *	with.
 	 * @return array The resulting query.
 	 */
-	function getSecurityFilter($filter=array()){
+	function getSecurityFilter($filter = []){
 		return array_merge($this->_securityFilter, $filter);
 	}
 	 
@@ -2710,7 +2592,7 @@ class Dataface_Table {
 	 * @see getPermissions()
 	 * @see Dataface_Record::getPermissions()
 	 */
-	function getRelationshipPermissions($relationshipName, $params=array()){
+	function getRelationshipPermissions($relationshipName, $params = []){
 	
 		$params['relationship'] = $relationshipName;
 		return $this->getPermissions($params);
@@ -2748,7 +2630,7 @@ class Dataface_Table {
 	 * @see Dataface_PermissionsTool
 	 *
 	 */
-	function getPermissions($params=array()){
+	function getPermissions($params = []){
 	
 		// First let's try to load permissions from the cache
 		$pt =& Dataface_PermissionsTool::getInstance();
@@ -2764,10 +2646,10 @@ class Dataface_Table {
 		$appDelegate =& $app->getDelegate();
 		$parent =& $this->getParent();
 		$recordmask = @$params['recordmask'];
-		$methods = array();
+		$methods = [];
 		if ( isset($params['relationship']) ){
 			if ( isset($params['relationshipmask']) ) $rmask =& $params['relationshipmask'];
-			else $rmask = array();
+			else $rmask = [];
 			
 			if ( isset($params['field']) ){
 				$relprefix = 'rel_'.$params['relationship'].'__';
@@ -2802,7 +2684,7 @@ class Dataface_Table {
 
 		}
 		//if ( isset($params['recordmask']) ) $mask =& $params['recordmask'];
-		//else $mask = array();
+		//else $mask = [];
 		if ( isset($record) and $record instanceof Dataface_Record ){
 			$methods[] = array('object'=>$pt, 'name'=>'getPortalRecordPermissions', 'type'=>'permissions', 'partial'=>1);
 			if ( $record->table()->hasField('__roles__') ){
@@ -2816,7 +2698,7 @@ class Dataface_Table {
 		$methods[] = array('object'=>&$appDelegate, 'name'=>'getRoles', 'type'=>'roles');
 		if ( isset($parent) ) $methods[] = array('object'=>&$parent, 'name'=>'getPermissions', 'type'=>'Dataface_Table');
 	
-		$perms = array();
+		$perms = [];
 		foreach ($methods as $method){
 			if ( $method == 'break' ) {
 				if ( !$perms ) return null;
@@ -2869,7 +2751,7 @@ class Dataface_Table {
 	 */
 	function convertRolesToPermissions($roles){
 		if ( is_array($roles) ){
-			$perms = array();
+			$perms = [];
 			foreach ($roles as $role){
 				if ( is_string($role) ){
 					$perms = array_merge($perms, Dataface_PermissionsTool::getRolePermissions($role));
@@ -2920,7 +2802,7 @@ class Dataface_Table {
 	 */
 	function &getTranslations(){
 		if ( $this->translations === null ){
-			$this->translations = array();
+			$this->translations = [];
 			$res = xf_db_query("SHOW TABLES LIKE '".addslashes($this->tablename)."%'", $this->db);
 			if ( !$res ){
 				
@@ -2953,7 +2835,7 @@ class Dataface_Table {
 					continue;
 				}
 				
-				$matches = array();
+				$matches = [];
 				if ( preg_match( '/^'.$this->tablename.'_([a-zA-Z]{2})$/', $tablename, $matches) ){
 					$this->translations[$matches[1]] = 0;
 				}
@@ -2990,7 +2872,7 @@ class Dataface_Table {
 						E_USER_ERROR
 					);
 				}
-				$translations[$name] = array();
+				$translations[$name] = [];
 				while ( $row = xf_db_fetch_assoc($res) ){
 					$translations[$name][] = $row['Field'];
 				}
@@ -3075,8 +2957,7 @@ class Dataface_Table {
                 
             }
             
-            return $this->_atts['singular_label'];
-	
+    return $this->_atts['singular_label'];	
 	}
 	 
 	/**
@@ -3085,7 +2966,7 @@ class Dataface_Table {
 	 */
 	function tableInfo(){
 		
-		$info = array();
+		$info = [];
 		foreach ( array_keys($this->fields()) as $fieldname){
 			$field =& $this->getField($fieldname);
 			$info['fields'][$fieldname]['Type'] = $field['Type'];
@@ -3102,7 +2983,7 @@ class Dataface_Table {
 	 */
 	function databaseInfo(){
 		$tables =& self::loadTable('',null,true);
-		$info = array();
+		$info = [];
 		foreach ( array_keys($tables) as $tablename ){
 			$info[$tablename] =& $tables[$tablename]->tableInfo();	
 		}
@@ -3226,7 +3107,7 @@ class Dataface_Table {
 				if ( !$res ) throw new Exception(xf_db_error(df_db()));
 				
 			}
-			$backup_times = array();
+			$backup_times = [];
 			while ( $row = xf_db_fetch_assoc($res) ){
 				$backup_times[$row['name']] = $row['mtime'];
 			}
@@ -3255,7 +3136,7 @@ class Dataface_Table {
 	public static function &getTableModificationTimes($refresh=false){
 		static $mod_times = 0;
 		if ( $mod_times === 0 or $refresh ){ 
-			$mod_times = array();
+			$mod_times = [];
 		
 			$app = Dataface_Application::getInstance();
 			$dbname = $app->_conf['_database']['name'];
@@ -3423,7 +3304,7 @@ class Dataface_Table {
 	 */
 	private function _loadValuelist($name){
 		if ( !isset($this->_valuelists) ){
-			$this->_valuelists = array();
+			$this->_valuelists = [];
 		}
 		
 		if ( !isset($this->_valuelists[$name]) ){
@@ -3488,7 +3369,7 @@ class Dataface_Table {
 	
 	function _loadValuelistsIniFile_old(){
 		if ( !isset( $this->_valuelists ) ){
-			$this->_valuelists = array();
+			$this->_valuelists = [];
 		}
 		$valuelists =& $this->_valuelists;
 		
@@ -3498,7 +3379,7 @@ class Dataface_Table {
 		
 		
 		foreach ( $conf as $vlname=>$vllist ){
-			$valuelists[$vlname] = array();
+			$valuelists[$vlname] = [];
 			if ( is_array( $vllist ) ){
 				foreach ( $vllist as $key=>$value ){
 					if ( $key == '__import__' ){
@@ -3759,7 +3640,7 @@ class Dataface_Table {
 			} else if ( is_array($rel_values) ){
 				list($rel_name, $field_name) = explode('.', $rel_name);
 				if ( isset($r[$rel_name]) ){
-					$field_def = array();
+					$field_def = [];
 					$this->_parseIniSection($rel_values, $field_def);
 					$r[$rel_name]->setFieldDefOverride($field_name, $field_def);
 				}
@@ -3860,7 +3741,7 @@ class Dataface_Table {
 	 * @see Dataface_Record::getRelatedRecordObjects()
 	 */
 	function setRelationshipRange($relationshipName, $lower, $upper){
-		if ( !isset( $this->_relationshipRanges ) ) $this->_relationshipRanges = array();
+		if ( !isset( $this->_relationshipRanges ) ) $this->_relationshipRanges = [];
 		$this->_relationshipRanges[$relationshipName] = array($lower, $upper);
 		
 	}
@@ -3943,7 +3824,7 @@ class Dataface_Table {
 	 *
 	 * 
 	 */
-	function getRelationshipsAsActions($params=array(), $relationshipName=null, $passthru=false){
+	function getRelationshipsAsActions($params = [], $relationshipName=null, $passthru=false){
 		
 		$relationships =& $this->relationships();
 		$rkeys = array_keys($relationships);
@@ -3951,7 +3832,7 @@ class Dataface_Table {
 		 if ( isset( $this->_cache['getRelationshipsAsActions']) ){
 		 	$actions = $this->_cache['getRelationshipsAsActions'];
 		 } else {
-			 $actions = array();
+			 $actions = [];
 			 foreach ( $rkeys as $key){
 			 	$srcTable =& $relationships[$key]->getSourceTable();
 				$actions[$key] = array(
@@ -4293,7 +4174,7 @@ class Dataface_Table {
 		} else if ( isset($this->_joinTables) ){
 			return $this->_joinTables;
 		} else {
-			return array();
+			return [];
 		}
 	}
 	
@@ -4413,7 +4294,7 @@ class Dataface_Table {
 	 */ 
 	function hasImportFilters() {
 	    if (!isset(self::$knownImportFilters)) {
-            self::$knownImportFilters = array();
+            self::$knownImportFilters = [];
             if (DATAFACE_EXTENSION_LOADED_APC) {
                 self::$knownImportFilters = apc_fetch(DATAFACE_SITE_PATH.'/import_filters');
                 if (!isset(self::$knownImportFilters) or !@self::$knownImportFilters['.mtime'] or ($this->_hasDelegateFile() and self::$knownImportFilters['.mtime'] < filemtime($this->_delegateFilePath()))) {
@@ -4453,7 +4334,7 @@ class Dataface_Table {
 	function &getImportFilters(){
 		import( 'Dataface/ImportFilter.php');
 		if ( $this->_importFilters === null ){
-			$this->_importFilters = array();
+			$this->_importFilters = [];
 			/*
 			 * Filters have not been loaded yet.. let's load them.
 			 *
@@ -4465,7 +4346,7 @@ class Dataface_Table {
 			if ( $delegate !== null ) {
 				$methods = get_class_methods(get_class( $delegate ) );
 				foreach ( $methods as $method ){
-					$matches = array();
+					$matches = [];
 					if ( preg_match( '/^__import__(.*)$/', $method, $matches) ){
 						$filter = new Dataface_ImportFilter($this->tablename, $matches[1], df_translate('import_filters:'.$matches[1].':label', ucwords(str_replace('_',' ',$matches[1]))));
 						$this->_importFilters[$matches[1]] =& $filter;
@@ -4522,7 +4403,7 @@ class Dataface_Table {
 			throw new Exception("Error getting import table list for table '".$this->tablename."'.", E_USER_ERROR);
 		}
 		
-		$tables = array();
+		$tables = [];
 		while ( $row = xf_db_fetch_row($res) ){
 			$tables[] = $row[0];
 		}
@@ -4572,7 +4453,7 @@ class Dataface_Table {
 		$app =& Dataface_Application::getInstance();
 		$garbageLifetime = $app->_conf['garbage_collector_threshold'];
 		foreach ($tables as $table){
-			$matches =array();
+			$matches =[];
 			if ( preg_match('/^'.$this->tablename.'__import_(\d+)_(\d)$/', $table,  $matches) ){
 				if ( time() - intval($matches[1]) > intval($garbageLifetime) ){
 					$res = xf_db_query("DROP TABLE `$table`", $this->db);
@@ -4651,7 +4532,7 @@ class Dataface_Table {
 	 * @see Dataface_Record::val()
 	 * 
 	 */
-	function parseImportData($data, $importFilter=null, $defaultValues=array()){
+	function parseImportData($data, $importFilter=null, $defaultValues = []){
 		$filters =& $this->getImportFilters();
 		$delegate =& $this->getDelegate();
 		if ( $delegate === null ){
@@ -4663,7 +4544,7 @@ class Dataface_Table {
 			 */
 			return Dataface_Error::noImportFiltersFound();
 		}
-		$errors = array();
+		$errors = [];
 		if ( $importFilter === null ){
 			/*
 			 * The filter is not specified so we will try every filter until we find one
@@ -4739,7 +4620,7 @@ class Dataface_Table {
 				$temp =& $curr;
 				for ( $i=0; $i<count($path); $i++){
 					if ( $i<count($path)-1){
-						if ( !isset($temp[$path[$i]])) $temp[$path[$i]] = array();
+						if ( !isset($temp[$path[$i]])) $temp[$path[$i]] = [];
 						$temp2 =& $temp[$path[$i]];
 						unset($temp);
 						$temp =& $temp2;
@@ -4787,7 +4668,7 @@ class Dataface_Table {
 				
 				$type = $field['Type'];
 				
-				$matches = array();
+				$matches = [];
 				
 				if ( preg_match('/^([^\( ]+).*/', $type, $matches) ){
 					$type = $matches[1];
@@ -5283,7 +5164,7 @@ class Dataface_Table {
 	 */
 	function parseString( $str, $values ){
 		if ( !is_string($str) ) return $str;
-		$matches = array();
+		$matches = [];
 		$blackString = $str;
 		while ( preg_match( '/(?<!\\\)\$([0-9a-zA-Z\._\-]+)/', $blackString, $matches ) ){
 			if ( $this->hasField($matches[1]) ){
@@ -5352,7 +5233,7 @@ class Dataface_Table {
 			}
 			
 			$extension = '';
-			$matches = array();
+			$matches = [];
 			if ( preg_match('/\.([^\.]+)$/', $value['name'], $matches) ){
 				$extension = $matches[1];
 			}
@@ -5414,7 +5295,7 @@ class Dataface_Table {
 	 * @param array $params Associative array of key/value pairs to pass to the block.
 	 *
 	 */
-	function displayBlock($blockName, $params=array()){
+	function displayBlock($blockName, $params = []){
 		if ( @$this->app->_conf['debug'] ) echo "<div class=\"debug_marker\">Block &quot;$blockName&quot;</div>";
 		$delegate =& $this->getDelegate();
 		//echo "Checking for block $blockName";
@@ -5455,7 +5336,7 @@ class Dataface_Table {
 	 * @param array $params Associative array of parameters to pass to the block.
 	 * @return string The block content as a string.
 	 */
-	function getBlockContent($blockName, $params=array()){
+	function getBlockContent($blockName, $params = []){
 		ob_start();
 		$res = $this->displayBlock($blockName, $params);
 		$out = ob_get_contents();
@@ -5528,7 +5409,7 @@ class Dataface_Table {
 	}
 	
 	
-	private static $basePaths = array();
+	private static $basePaths = [];
 	public static function setBasePath($table, $path){
 		self::$basePaths[$table] = $path;
 	}
@@ -5582,7 +5463,7 @@ class Dataface_Table {
 	 * want to ensure that values get recalculated then you can clear the cache here.
 	 */
 	function clearCache(){
-		$this->_cache = array();
+		$this->_cache = [];
 	}
 
 	
@@ -5658,55 +5539,30 @@ class Dataface_Table {
 	 
 	 
 	/**
-	 * @brief Returns the actions for this table.
+	 * Returns the actions for this table.
+   * 
 	 * @param array $params An associative array of options.  Possible keys include:
 	 * @code
-	 *		record => reference to a Dataface_Record or Dataface_RelatedRecord object
+	 *		record       => reference to a Dataface_Record or Dataface_RelatedRecord object
 	 *		relationship => The name of a relationship.
-	 *		category => A name of a category for the actions to be returned.
+	 *		category     => A name of a category for the actions to be returned.
 	 * @endcode
+   * 
 	 * @return array An associative array of action data structures.
-	 *
 	 * @see Dataface_ActionTool
-	 *
 	 */
-	function getActions(&$params,$noreturn=false){
+	function getActions($params, $veryMeaningfulParameter = false)
+  {
 		import( 'Dataface/ActionTool.php');
-		$actionsTool =& Dataface_ActionTool::getInstance();
-		if ( !$this->_actionsLoaded  ){
-			$this->_actionsLoaded = true;
-			import( 'Dataface/ConfigTool.php');
-			$configTool =& Dataface_ConfigTool::getInstance();
-			$actions =& $configTool->loadConfig('actions',$this->tablename);
-			//print_r($actions);
-			//$singularLabel = $this->getSingularLabel();
-			//$pluralLabel = $this->getLabel();
-			foreach ($actions as $key=>$action){
-				$action['table'] = $this->tablename;
-				$action['name'] = $key;
-				if ( !isset($action['id']) ) $action['id'] = $action['name'];
-				if ( !isset($action['label']) ) $action['label'] = str_replace('_',' ',ucfirst($action['name']));
-				if ( !isset($action['accessKey'])) $action['accessKey'] = substr($action['name'],0,1);
-				if ( !isset($action['label_i18n']) ) $action['label_i18n'] = 'action:'.$action['name'].' label';
-				if ( !isset($action['description_i18n'])) $action['description_i18n'] = 'action:'.$action['name'].' description';
-				if ( isset($action['description']) ){
-					$action['description'] = df_translate('actions.'.$action['name'].'.description', $action['description']);
-				}
-				if ( isset($action['label']) ){
-					//$action['label'] = df_translate('actions.'.$action['name'].'.label',$action['label'], array('table_label_singular'=>$singularLabel, 'table_label_plural'=>$pluralLabel));
-                                    $action['label'] = df_translate('actions.'.$action['name'].'.label',$action['label']);
-				}
-				
-				$actionsTool->addAction($key, $action);
-			}
-			
-			
-		}
-		
+		$actionTool = Dataface_ActionTool::getInstance();
+    
 		$params['table'] = $this->tablename;
-		if ( $noreturn ) return true;
-		return $actionsTool->getActions($params);
-			
+    $actions = $actionTool->getActions($params);
+    
+		if ($veryMeaningfulParameter)
+      return true;
+    else
+      return $actions;
 	}
 	
 	
@@ -5714,4 +5570,8 @@ class Dataface_Table {
 	// End Actions
 	//----------------------------------------------------------------------------------------------
 
+  public function getName()
+  {
+    return $this->tablename;
+  }
 }
