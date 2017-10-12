@@ -38,7 +38,7 @@ function init($site_path, $dataface_url){
 		$temp_site_url = substr($temp_site_url,0, strlen($temp_site_url)-1);
 	}
 	define('DATAFACE_SITE_URL', str_replace('\\','/',$temp_site_url));
-	define('DATAFACE_SITE_HREF', (DATAFACE_SITE_URL != '/' ? DATAFACE_SITE_URL.'/':'/').basename($_SERVER['PHP_SELF']) );
+	define('DATAFACE_SITE_HREF', '');
 	if ( !preg_match('#^https?://#', $dataface_url) and $dataface_url and $dataface_url{0} != '/' ){
 		$dataface_url = DATAFACE_SITE_URL.'/'.$dataface_url;
 	}
