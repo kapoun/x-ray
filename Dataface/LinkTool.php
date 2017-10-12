@@ -150,12 +150,7 @@ class Dataface_LinkTool {
    		$str = substr($str,0, strlen($str)-1);
    
    		
-   		$url = DATAFACE_SITE_HREF;
-   		if ( strpos('?', $url) !== false ){
-   			$url .= '&'.$str;
-   		} else {
-   			$url .= '?'.$str;
-   		}
+      $url = DATAFACE_SITE_HREF . "?{$str}";
 
    		$url = $app->filterUrl($url);
    		return df_absolute_url($url);
