@@ -2,30 +2,36 @@
 
 namespace Xataface;
 
+require_once dirname(__DIR__) . '/xataface/public-api.php';
+require_once dirname(__DIR__) . '/xataface/init.php';
+require_once dirname(__DIR__) . '/xataface/PEAR.php';
+
 /**
-*  A sample class
-*
-*  Use this section to define what this class is doing, the PHPDocumentator will use this
-*  to automatically generate an API documentation using this information.
-*
-*  @author yourname
-*/
+ *  A class representing the whole Xataface application.
+ */
 class Application {
-  private function __construct() {}
+  private $app;
   
   /**
    * Initializes a Xataface application.
    *
    * @param string  $sitePath    The path to your site's access point.
-   * @param string  $xatafaceUrl The URL to the Xataface directory.
    * @param boolean $debug       Whether to start the application in debug mode.
    *
    * @return Dataface_Application The Xataface application object.
    */
-  public static function init($sitePath, $debug = false) {
-    require_once dirname(__DIR__) . '/xataface/dataface-public-api.php';
+  public function __construct($sitePath, $debug = false) {
+    init($sitePath, '/vendor/shannah/xataface/xataface');
+    require_once dirname(__DIR__) . '/xataface/Dataface/Application.php';
+
     $conf = $debug ? ['debug' => true] : null;
-    $app = df_init($sitePath, '/vendor/shannah/xataface/xataface', $conf);
-    return $app;
+    $this->app = \Dataface_Application::getInstance($conf);
+  }
+  
+  /**
+   * Displays the Xataface application.
+   */
+  public function display() {
+    $this->app->display();
   }
 }
