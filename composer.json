@@ -1,0 +1,28 @@
+{
+  "name": "shannah/xataface",
+  "description": "Framework for building data-driven web applications in PHP and MySQL",
+  "version": "3.0.0-dev",
+  "type": "library",
+  "homepage": "http://xataface.com/",
+  "license": "GPL-2.0",
+  "authors": [
+    {
+      "name": "Steve Hannah",
+      "homepage": "http://sjhannah.com"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/shannah/xataface/issues",
+    "wiki": "https://github.com/shannah/xataface/wiki",
+    "source": "https://github.com/shannah/xataface",
+    "docs": "http://xataface.com/wiki/"
+  },
+  "require": {
+    "php": ">=5.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Xataface\\": "src/"
+    }
+  }
+}
