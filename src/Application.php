@@ -40,10 +40,8 @@ class Application {
    * there is a corresponding value in the new configuration) or left untouched
    * (if there is not). Values not yet present in the current configuration are
    * simply added.
-   * 
-   * @param Configuration $configuration
    */
-  public function addConfiguration($configuration): Application {
+  public function addConfiguration(Configuration $configuration): Application {
     $array      = $configuration->toArray();
     $this->conf = \array_merge($this->conf, $array);
     return $this;
@@ -51,10 +49,8 @@ class Application {
 
   /**
    * Adds an optional module to the application.
-   * 
-   * @param Module $module
    */
-  public function addModule($module): Application {
+  public function addModule(Module $module): Application {
     $name = $module->getName();
     $path = $module->getPath();
     $this->conf['_modules']["modules_{$name}"] = $path;

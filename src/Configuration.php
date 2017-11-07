@@ -11,14 +11,12 @@ class Configuration {
    * 
    * @param array $array An array to create configuration from.
    */
-  public function __construct($array = []) {
+  public function __construct(array $array = []) {
     $this->conf = $array;
   }
 
   /**
    * Converts the object to a configuration array.
-   * 
-   * @return array
    */
   public function toArray(): array {
     return $this->conf;
@@ -26,10 +24,8 @@ class Configuration {
 
   /**
    * Creates a configuration using values loaded from an INI file.
-   * 
-   * @param string $path Path to the INI file.
    */
-  public static function fromIni($path): Configuration {
+  public static function fromIni(string $path): Configuration {
     $array = \parse_ini_file($path);
     $conf  = new Configuration($array);
     return $conf;
