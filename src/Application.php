@@ -11,15 +11,14 @@ require_once dirname(__DIR__).'/xataface/PEAR.php';
 class Application {
 
   private $app;
-  private $conf;
-  private $modules;
+  private $config;
 
   /**
    * Initializes a Xataface application.
    *
    * @return Dataface_Application The Xataface application object.
    */
-  public function __construct() {
+  public function __construct(Config $config) {
     define('DATAFACE_SITE_HREF', '');
     define('DATAFACE_SITE_PATH', '.');
     define('DATAFACE_SITE_URL', '');
@@ -30,22 +29,21 @@ class Application {
     if (@$_GET['-action'] == 'css')
       require_once dirname(__DIR__).'/xataface/css.php';
 
-    $this->conf    = [];
-    $this->modules = [];
+    $this->config  = $config;
   }
 
-  /**
-   * Adds a new configuration and combines it with the current one (if any). The
-   * values present in the current configuration are either overwritten (if
-   * there is a corresponding value in the new configuration) or left untouched
-   * (if there is not). Values not yet present in the current configuration are
-   * simply added.
-   */
-  public function addConfiguration(Configuration $configuration): Application {
-    $array      = $configuration->toArray();
-    $this->conf = \array_merge($this->conf, $array);
-    return $this;
-  }
+//  /**
+//   * Adds a new configuration and combines it with the current one (if any). The
+//   * values present in the current configuration are either overwritten (if
+//   * there is a corresponding value in the new configuration) or left untouched
+//   * (if there is not). Values not yet present in the current configuration are
+//   * simply added.
+//   */
+//  public function addConfiguration(Config $configuration): Application {
+//    $array      = $configuration->toArray();
+//    $this->config = \array_merge($this->config, $array);
+//    return $this;
+//  }
 
   /**
    * Adds an optional module to the application.
@@ -53,8 +51,12 @@ class Application {
   public function addModule(Module $module): Application {
     $name = $module->getName();
     $path = $module->getPath();
-    $this->conf['_modules']["modules_{$name}"] = $path;
+    $this->config->conf['_modules']["modules_{$name}"] = $path;
     return $this;
+  }
+  
+  public function getConfig(): Config {
+    return $this->config;
   }
 
   /**
@@ -62,15 +64,16 @@ class Application {
    */
   public function run() {
     require_once dirname(__DIR__).'/xataface/Dataface/Application.php';
-    $this->app = \Dataface_Application::getInstance($this->conf);
+    $conf = $this->config->toArray();
+    $this->app = \Dataface_Application::getInstance($conf);
     $this->app->display();
   }
 
   /**
    * A static version of the constructor. The function is the same.
    */
-  public static function create(): Application {
-    return new Application;
+  public static function create(Config $config): Application {
+    return new Application($config);
   }
 
 }
