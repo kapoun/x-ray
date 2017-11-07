@@ -2,36 +2,79 @@
 
 namespace Xataface;
 
-require_once dirname(__DIR__) . '/xataface/public-api.php';
-require_once dirname(__DIR__) . '/xataface/init.php';
-require_once dirname(__DIR__) . '/xataface/PEAR.php';
+require_once dirname(__DIR__).'/xataface/public-api.php';
+require_once dirname(__DIR__).'/xataface/PEAR.php';
 
 /**
  *  A class representing the whole Xataface application.
  */
 class Application {
+
   private $app;
-  
+  private $conf;
+  private $modules;
+
   /**
    * Initializes a Xataface application.
    *
-   * @param string  $sitePath    The path to your site's access point.
-   * @param boolean $debug       Whether to start the application in debug mode.
-   *
    * @return Dataface_Application The Xataface application object.
    */
-  public function __construct($sitePath, $debug = false) {
-    init($sitePath, '/vendor/shannah/xataface/xataface');
-    require_once dirname(__DIR__) . '/xataface/Dataface/Application.php';
+  public function __construct() {
+    define('DATAFACE_SITE_HREF', '');
+    define('DATAFACE_SITE_PATH', '.');
+    define('DATAFACE_SITE_URL', '');
+    define('DATAFACE_URL', 'vendor/shannah/xataface/xataface');
+    require_once dirname(__DIR__).'/xataface/config.inc.php';
+    if (@$_GET['-action'] == 'js')
+      require_once dirname(__DIR__).'/xataface/js.php';
+    if (@$_GET['-action'] == 'css')
+      require_once dirname(__DIR__).'/xataface/css.php';
 
-    $conf = $debug ? ['debug' => true] : null;
-    $this->app = \Dataface_Application::getInstance($conf);
+    $this->conf    = [];
+    $this->modules = [];
   }
-  
+
   /**
-   * Displays the Xataface application.
+   * Adds a new configuration and combines it with the current one (if any). The
+   * values present in the current configuration are either overwritten (if
+   * there is a corresponding value in the new configuration) or left untouched
+   * (if there is not). Values not yet present in the current configuration are
+   * simply added.
+   * 
+   * @param Configuration $configuration
    */
-  public function display() {
+  public function addConfiguration($configuration): Application {
+    $array      = $configuration->toArray();
+    $this->conf = \array_merge($this->conf, $array);
+    return $this;
+  }
+
+  /**
+   * Adds an optional module to the application.
+   * 
+   * @param Module $module
+   */
+  public function addModule($module): Application {
+    $name = $module->getName();
+    $path = $module->getPath();
+    $this->conf['_modules']["modules_{$name}"] = $path;
+    return $this;
+  }
+
+  /**
+   * Runs and displays the Xataface application.
+   */
+  public function run() {
+    require_once dirname(__DIR__).'/xataface/Dataface/Application.php';
+    $this->app = \Dataface_Application::getInstance($this->conf);
     $this->app->display();
   }
+
+  /**
+   * A static version of the constructor. The function is the same.
+   */
+  public static function create(): Application {
+    return new Application;
+  }
+
 }
