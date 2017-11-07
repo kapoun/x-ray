@@ -63,6 +63,7 @@ if ( !function_exists('sys_get_temp_dir') )
 require_once dirname(__FILE__)."/../config.inc.php";
 import('Dataface/PermissionsTool.php');
 import('Dataface/LanguageTool.php');
+import('Dataface/ModuleTool.php');
 define('DATAFACE_STRICT_PERMISSIONS', 100);
 	// the minimum security level that is deemed as strict permissions.  
 	// strict permissions mean that permissions must be explicitly granted to a 
@@ -544,512 +545,136 @@ END;
 	/**
 	 * @brief Constructor.  Do not use this.  getInstance() instead.
 	 */
-	function Dataface_Application($conf = null){
-		if ( !isset($this->sessionCookieKey) ){
+	function Dataface_Application($conf) {
+		if (!isset($this->sessionCookieKey))
 		    $this->sessionCookieKey = md5(DATAFACE_SITE_URL.'#'.__FILE__);
-		}
-		$this->_baseUrl  = $_SERVER['PHP_SELF'];
-		if ( !is_array($conf) ) $conf = array();
-		if ( is_readable(DATAFACE_SITE_PATH.'/conf.ini') ){
-			$conf = array_merge(parse_ini_file(DATAFACE_SITE_PATH.'/conf.ini', true), $conf);
-			if ( @$conf['__include__'] ){
-				$includes = array_map('trim',explode(',', $conf['__include__']));
-				foreach ($includes as $i){
-					if ( is_readable($i) ){
-						$conf = array_merge($conf, parse_ini_file($i, true));
-					}
-				}
-			}
-		}
-		
-		
-		
-		if ( !isset( $conf['_tables'] ) ){
-			throw new Exception('Error loading config file.  No tables specified.', E_USER_ERROR);
-
-		}
-
-		
-		
-		if ( isset( $conf['db'] ) and is_resource($conf['db']) ){
-			$this->_db = $conf['db'];
-		} else {
-			if ( !isset( $conf['_database'] ) ){
-				throw new Exception('Error loading config file. No database specified.', E_USER_ERROR);
-
-			}
-			$dbinfo =& $conf['_database'];
-			if ( !is_array( $dbinfo ) || !isset($dbinfo['host']) || !isset( $dbinfo['user'] ) || !isset( $dbinfo['password'] ) || !isset( $dbinfo['name'] ) ){
-				throw new Exception('Error loading config file.  The database information was not entered correctly.<br>
-					 Please enter the database information int its own section of the config file as follows:<br>
-					 <pre>
-					 [_database]
-					 host = localhost
-					 user = foo
-					 password = bar
-					 name = database_name
-					 </pre>', E_USER_ERROR);
-
-			}
-			if ( !isset($dbinfo['driver']) ){
-				$dbinfo['driver'] = 'mysql';
-			}
-			require_once 'xf/db/drivers/'.basename($dbinfo['driver']).'.php';
-			//if ( @$dbinfo['persistent'] ){
-			//	$this->_db = xf_db_pconnect( $dbinfo['host'], $dbinfo['user'], $dbinfo['password'] );
-			//} else {
-			
-			$this->_db = xf_db_connect( $dbinfo['host'], $dbinfo['user'], $dbinfo['password'] );
-			//}
-			if ( !$this->_db ){
-				throw new Exception('Error connecting to the database: '.xf_db_error());
-
-			}
-			$this->mysqlVersion = xf_db_get_server_info($this->_db);
-			xf_db_select_db( $dbinfo['name'], $this->_db) or die("Could not select DB: ".xf_db_error($this->_db));
-		}
-		//if ( !defined( 'DATAFACE_DB_HANDLE') ) define('DATAFACE_DB_HANDLE', $this->_db);
-		
-		
-		if ( !is_array( $conf['_tables'] ) ){
-			throw new Exception("<pre>
-				Error reading table information from the config file.  Please enter the table information in its own section
-				of the ini file as follows:
-				[_tables]
-				table1 = Table 1 Label
-				table2 = Table 2 Label
-				</pre>");
-
-		}
-		
+		$this->_baseUrl = $_SERVER['PHP_SELF'];
+    $dbinfo = $conf['_database'];
+    require_once 'xf/db/drivers/' . basename($dbinfo['driver']) . '.php';
+    $this->_db = xf_db_connect($dbinfo['host'], $dbinfo['user'], $dbinfo['password']);
+    $this->mysqlVersion = xf_db_get_server_info($this->_db);
+    xf_db_select_db($dbinfo['name'], $this->_db) or die("Could not select DB: ".xf_db_error($this->_db));
 		$this->_tables = $conf['_tables'];
 		
-		
-		
-		if ( count($this->_tables) <= 10 ){
-			$this->prefs['horizontal_tables_menu'] = 1;
-		}
-		
-		// We will register a _cleanup method to run after code execution is complete.
-		register_shutdown_function(array(&$this, '_cleanup'));
-
-		// Set up memcache if it is installed.
-		if ( DATAFACE_EXTENSION_LOADED_MEMCACHE ){
-			if ( isset($conf['_memcache']) ){
-				if ( !isset($conf['_memcache']['host']) ){
-					$conf['_memcache']['host'] = 'localhost';
-				}
-				if ( !isset($conf['_memcache']['port']) ){
-					$conf['_memcache']['port'] = 11211;
-				}
-				$this->memcache = new Memcache;
-				$this->memcache->connect($conf['_memcache']['host'], $conf['_memcache']['port']) or die ("Could not connect to memcache on port 11211");
-				
-			}
-		}
-		
-		//
 		// -------- Set up the CONF array ------------------------
+    
 		$this->_conf = $conf;
 		
-		if ( !isset($this->_conf['_disallowed_tables']) ){
-			$this->_conf['_disallowed_tables'] = array();
-		}
+		$defaultDisallowedTables = [
+		  'cache'    => '__output_cache',
+		  'dataface' => '/^dataface__/',
+		  'history'  => '/__history$/',
+      'xataface' => '/^xataface__/'
+    ];
+    $this->_conf['_disallowed_tables'] = \array_merge($defaultDisallowedTables, $this->_conf['_disallowed_tables'] ?? []);
+    
+    $defaultModules = [
+      'modules_XataJax' => 'modules/XataJax/XataJax.php',
+      'modules_g2'      => 'modules/g2/g2.php'
+    ];
+		$this->_conf['_modules'] = \array_merge($defaultModules, $this->_conf['_modules']);
 		
-		$this->_conf['_disallowed_tables']['history'] = '/__history$/';
-		$this->_conf['_disallowed_tables']['cache'] = '__output_cache';
-		$this->_conf['_disallowed_tables']['dataface'] = '/^dataface__/';
-                $this->_conf['_disallowed_tables']['xataface'] = '/^xataface__/';
-		if ( !@$this->_conf['_modules'] or !is_array($this->_conf['_modules']) ){
-			$this->_conf['_modules'] = array();
-		}
+    $defaultConf = [
+		  'auto_load_results'           =>  false,
+      'cache_dir'                   => \ini_get('upload_tmp_dir') ?: '/tmp',
+		  'config_storage'              =>  DATAFACE_DEFAULT_CONFIG_STORAGE,
+		  'cookie_prefix'               => 'dataface__',
+		  'default_action'              => 'list',
+      'default_browse_action'       => 'view',
+      'default_field_role'          => 'ADMIN',
+      'default_language'            => 'en',
+      'default_limit'               =>  30,
+		  'default_mode'                => 'list',
+      'default_relationship_role'   => 'ADMIN',
+      'default_table'               => \array_keys($this->_tables)[0],
+      'default_table_role'          => 'ADMIN',
+		  'garbage_collector_threshold' =>  10*60,
+      'lang'                        => 'en',
+		  'languages'                   => ['en'],
+      'multilingual_content'        =>  false,
+		  'security_level'              =>  0, //DATAFACE_STRICT_PERMISSIONS
+      'usage_mode'                  => 'view'
+    ];
+    $this->_conf = \array_merge($defaultConf, $this->_conf);
 		
-		// Include XataJax module always.
-		$mods = array('modules_XataJax'=>'modules/XataJax/XataJax.php');
-		if ( !@$this->_conf['disable_g2'] ){
-			$mods['modules_g2'] = 'modules/g2/g2.php';
-		}
-		foreach ($this->_conf['_modules'] as $k=>$v){
-			$mods[$k] = $v;
-		}
-		$this->_conf['_modules'] = $mods;
+		if (!is_array($this->_conf['languages']))
+      $this->_conf['languages'] = [$this->_conf['languages']];
 		
+    $this->_conf['oe'] = $this->_conf['default_oe'] = 'UTF-8';
+    $this->_conf['ie'] = $this->_conf['default_ie'] = 'UTF-8';
+    
+    xf_db_query("SET NAMES utf8", $this->_db);
+    xf_db_query('set character_set_results = \'utf8\'', $this->_db);
+    xf_db_query('set character_set_client = \'utf8\'', $this->_db);
 		
-		if ( isset($this->_conf['_modules'])  and count($this->_conf['_modules'])>0 ){
-			import('Dataface/ModuleTool.php');
-		}
-
-		if ( isset($this->_conf['languages']) ){
-			$this->_conf['language_labels'] = $this->_conf['languages'];
-			foreach ( array_keys($this->_conf['language_labels']) as $lang_code){
-				$this->_conf['languages'][$lang_code] = $lang_code;
-			}
-		}
+    setcookie($this->_conf['cookie_prefix'] . 'lang', $this->_conf['lang'], null, '/');
+    $this->addHeadContent('<script>XF_LANG="'.htmlspecialchars($this->_conf['lang']).'";</script>');
 		
-		if ( @$this->_conf['support_transactions'] ){
-			// We will support transactions
-			@xf_db_query('SET AUTOCOMMIT=0', $this->_db);
-			@xf_db_query('START TRANSACTION', $this->_db);
-		
-		}
-		if ( !isset($this->_conf['default_ie']) ) $this->_conf['default_ie'] = 'UTF-8';
-		if ( !isset($this->_conf['default_oe']) ) $this->_conf['default_oe'] = 'UTF-8';
-		if ( isset( $this->_conf['multilingual_content']) || isset($this->_conf['languages']) ){
-			$this->_conf['oe'] = 'UTF-8';
-			$this->_conf['ie'] = 'UTF-8';
-			
-			if (function_exists('mb_substr') ){
-				// The mbstring extension is loaded
-				ini_set('mbstring.internal_encoding', 'UTF-8');
-				//ini_set('mbstring.encoding_translation', 'On');
-				ini_set('mbstring.func_overload', 7);
-				
-			}
-			
-			if ( !isset($this->_conf['languages']) ){
-				$this->_conf['languages'] = array('en'=>'English');
-			}
-			if ( !isset($this->_conf['default_language']) ){
-				if ( count($this->_conf['languages']) > 0 )
-					$this->_conf['default_language'] = reset($this->_conf['languages']);
-					
-				else 
-					$this->_conf['default_language'] = 'en';
-					
-			}
-			
-		} else {
-			$this->_conf['oe'] = $this->_conf['default_oe'];
-			$this->_conf['ie'] = $this->_conf['default_ie'];
-		}
-		
-                define('XF_OUTPUT_ENCODING', $this->_conf['oe']);
-                
-		if ( $this->_conf['oe'] == 'UTF-8' ){
-			$res = xf_db_query('set character_set_results = \'utf8\'', $this->_db);
-			xf_db_query("SET NAMES utf8", $this->_db);
-		}
-		if ( $this->_conf['ie'] == 'UTF-8' ){
-			$res = xf_db_query('set character_set_client = \'utf8\'', $this->_db);
-			
-		}
-		
-		
-		if ( isset($this->_conf['use_cache']) and $this->_conf['use_cache'] and !defined('DATAFACE_USE_CACHE') ){
-			define('DATAFACE_USE_CACHE', true);
-		}
-		
-		if ( isset($this->_conf['debug']) and $this->_conf['debug'] and !defined('DATAFACE_DEBUG') ){
-			define('DATAFACE_DEBUG', true);
-		} else if ( !defined('DATAFACE_DEBUG') ){
-			define('DATAFACE_DEBUG',false);
-		}
-		
-		if ( !@$this->_conf['config_storage'] ) $this->_conf['config_storage'] = DATAFACE_DEFAULT_CONFIG_STORAGE;
-			// Set the storage type for config information.  It can either be stored in ini files or
-			// in the database.  Database will give better performance, but INI files may be simpler
-			// to manage for simple applications.
-		
-		if ( !isset($this->_conf['garbage_collector_threshold']) ){
-			/**
-			 * The garbage collector threshold is the number of seconds that "garbage" can
-			 * exist for before it is deleted.  Examples of "garbage" include import tables
-			 * (ie: temporary tables created as an intermediate point to importing data).
-			 */
-			$this->_conf['garbage_collector_threshold'] = 10*60;
-		}
-		
-		if ( !isset($this->_conf['multilingual_content']) ) $this->_conf['multilingual_content'] = false;
-			// whether or not the application will use multilingual content.
-			// multilingual content enables translated versions of content to be stored in
-			// tables using naming conventions.
-			// Default to false because this takes a performance hit (sql queries take roughly twice
-			// as long because they have to be parsed first.
-		
-		if ( !isset($this->_conf['cookie_prefix']) ) $this->_conf['cookie_prefix'] = 'dataface__';
-		
-		if ( !isset($this->_conf['security_level']) ){
-			// Default security is strict if security is not specified.  This change is effectivce
-			// for Dataface 0.6 .. 0.5.3 and earlier had a loose permissions model by default that 
-			// could be tightened using delegate classes.
-			$this->_conf['security_level'] = 0; //DATAFACE_STRICT_PERMISSIONS;
-		}
-		
-		
-		if ( !isset($this->_conf['default_action']) ){
-			// The default action defines the action that should be set if no
-			// other action is specified.
-			$this->_conf['default_action'] = 'list';
-		}
-		
-		if ( !isset($this->_conf['default_browse_action']) ){
-			$this->_conf['default_browse_action'] = 'view';
-		}
-		
-		
-		if ( !isset($this->_conf['default_mode'] ) ) $this->_conf['default_mode'] = 'list';
-		
-		if ( !isset($this->_conf['default_limit']) ){
-			$this->_conf['default_limit'] = 30;
-		}
-		
-		if ( !isset($this->_conf['default_table'] ) ){
-			// The default table is the table that is used if no other table is specified.
-			foreach ($this->_tables as $key=>$value){
-				$this->_conf['default_table'] = $key;
-				
-				break;
-			}
-		}
-		
-		if ( !isset($this->_conf['auto_load_results']) ) $this->_conf['auto_load_results'] = false;
-		
-		if ( !isset( $this->_conf['cache_dir'] ) ){
-			if ( ini_get('upload_tmp_dir') ) $this->_conf['cache_dir'] = ini_get('upload_tmp_dir');
-			else $this->_conf['cache_dir'] = '/tmp';
-		}
-		
-		if ( !isset( $this->_conf['default_table_role'] ) ){
-			
-			if ( $this->_conf['security_level'] >= DATAFACE_STRICT_PERMISSIONS ){
-				$this->_conf['default_table_role'] = 'NO ACCESS';
-			} else {
-				$this->_conf['default_table_role'] = 'ADMIN';
-			}
-			
-		}
-		
-		if ( !isset( $this->_conf['default_field_role'] ) ){
-			if ( $this->_conf['security_level'] >= DATAFACE_STRICT_PERMISSIONS ){
-				$this->_conf['default_field_role'] = 'NO ACCESS';
-			} else {
-				$this->_conf['default_field_role'] = 'ADMIN';
-				
-			}
-		}
-		
-		if ( !isset( $this->_conf['default_relationship_role'] ) ){
-			if ( $this->_conf['security_level'] >= DATAFACE_STRICT_PERMISSIONS ){
-				$this->_conf['default_relationship_role'] = 'READ ONLY';
-			} else {
-				$this->_conf['default_relationship_role'] = 'ADMIN';
-				
-			}
-		}
-		
-		if ( !isset( $this->_conf['languages'] ) ) $this->_conf['languages'] = array('en');
-		else if ( !is_array($this->_conf['languages']) ) $this->_conf['languages'] = array($this->_conf['languages']);
-		
-		if ( isset($this->_conf['_language_codes']) ){
-			$this->_languages = array_merge($this->_languages, $this->_conf['_language_codes']);
-		}
-		if ( isset($this->_conf['_locales']) ){
-			$this->_locales = array_merge($this->_locales, $this->_conf['_locales']);
-		}
-		
-		// Set the language.
-		// Language is stored in a cookie.  It can be changed by passing the -lang GET var with the value
-		// of a language.  e.g. fr, en, cn
-		if ( !isset( $this->_conf['default_language'] ) ) $this->_conf['default_language'] = 'en';
-		$prefix = $this->_conf['cookie_prefix'];
-		//print_r($_COOKIE);
-		if ( isset($_REQUEST['--lang']) ){
-			$_REQUEST['--lang'] = basename($_REQUEST['--lang']);
-			$this->_conf['lang'] = $_REQUEST['--lang'];
-		} else if ( isset( $_REQUEST['-lang'] ) ){
-			$_REQUEST['-lang'] = basename($_REQUEST['-lang']);
-			$this->_conf['lang'] = $_REQUEST['-lang'];
-			if ( @$_COOKIE[$prefix.'lang'] !== $_REQUEST['-lang'] ){
-				setcookie($prefix.'lang', $_REQUEST['-lang'], null, '/');
-			}
-		} else if (isset( $_COOKIE[$prefix.'lang']) ){
-			$this->_conf['lang'] = $_COOKIE[$prefix.'lang'];
-		} else {
-			import('I18Nv2/I18Nv2.php');
-			$negotiator = I18Nv2::createNegotiator($this->_conf['default_language'], 'UTF-8');
-			$this->_conf['lang'] = $this->getLanguageCode(
-				$negotiator->getLocaleMatch(
-					$this->getAvailableLanguages()
-				)
-			);
-			setcookie($prefix.'lang', $this->_conf['lang'], null, '/');
-		}
-		
-		$this->_conf['lang'] = basename($this->_conf['lang']);
-                $this->addHeadContent('<script>XF_LANG="'.htmlspecialchars($this->_conf['lang']).'";</script>');
-		
-                
-                if ( isset($_REQUEST['-template']) ){
-                    $_REQUEST['-template'] = basename($_REQUEST['-template']);
-                }
-                if ( isset($_GET['-template']) ){
-                    $_GET['-template'] = basename($_GET['-template']);
-                }
-                if ( isset($_POST['-template']) ){
-                    $_POST['-template'] = basename($_POST['-template']);
-                }
-		
-		// Set the mode (edit or view)
-		if ( isset($_REQUEST['-usage_mode'] )){
-			$this->_conf['usage_mode'] = $_REQUEST['-usage_mode'];
-			if (@$_COOKIE[$prefix.'usage_mode'] !== $_REQUEST['-usage_mode']){
-				setcookie($prefix.'usage_mode', $_REQUEST['-usage_mode'], null, '/');
-			}
-		} else if ( isset( $_COOKIE[$prefix.'usage_mode'] ) ){
-			$this->_conf['usage_mode'] = $_COOKIE[$prefix.'usage_mode'];
-		} else if ( !isset($this->_conf['usage_mode']) ){
-			$this->_conf['usage_mode'] = 'view';
-		}
-		
+    define('XF_OUTPUT_ENCODING',  $this->_conf['oe']);
+    define('DATAFACE_DEBUG',      $this->_conf['debug'] ?? false);
 		define('DATAFACE_USAGE_MODE', $this->_conf['usage_mode']);
 		
-		if ( @$this->_conf['enable_workflow'] ){
-			import('Dataface/WorkflowTool.php');
-		}
-		
-		
-		
-		
 		// ------- Set up the current query ---------------------------------
-		
-		if ( isset($_REQUEST['__keys__']) and is_array($_REQUEST['__keys__']) ){
+    
+		if (isset($_REQUEST['__keys__']) and is_array($_REQUEST['__keys__'])) {
 			$query = $_REQUEST['__keys__'];
-			foreach ( array_keys($_REQUEST) as $key ){
-				if ( $key{0} == '-' and !in_array($key, array('-search','-cursor','-skip','-limit'))){
+			foreach (array_keys($_REQUEST) as $key)
+				if ($key{0} == '-' and !in_array($key, array('-search','-cursor','-skip','-limit')))
 					$query[$key] = $_REQUEST[$key];
-				}
-			}
-		} else {
+		}
+    else
 			$query = array_merge($_GET, $_POST);
-		}
-		if ( @$query['-action'] ){
-			$query['-action'] = trim($query['-action']);
-			if ( !preg_match('/^[a-zA-Z0-9_]+$/', $query['-action']) ){
-				throw new Exception("Illegal action name.");
-			}
-			$query['-action'] = basename($query['-action']);
-		}
-		if ( @$query['-table'] ){
-			$query['-table'] = trim($query['-table']);
-			if ( !preg_match('/^[a-zA-Z0-9_]+$/', $query['-table']) ){
-				throw new Exception("Illegal table name.");
-			}
-			$query['-table'] = basename($query['-table']);
-		}
-		if ( @$query['-lang'] ){
-			$query['-lang'] = trim($query['-lang']);
-			if ( !preg_match('/^[a-zA-Z0-9]{2}$/', $query['-lang']) ){
-				throw new Exception("Illegal language code: ".$query['-lang']);
-			}
-			$query['-lang'] = basename($query['-lang']);
-		}
-		
-		if ( @$query['--lang'] ){
-			$query['--lang'] = trim($query['--lang']);
-			if ( !preg_match('/^[a-zA-Z0-9]{2}$/', $query['--lang']) ){
-				throw new Exception("Illegal language code: ".$query['--lang']);
-			}
-			$query['--lang'] = basename($query['--lang']);
-		}
-		
-		if ( @$query['-theme'] ){
-			$query['-theme'] = trim($query['-theme']);
-			if ( !preg_match('/^[a-zA-Z0-9_]+$/', $query['-theme']) ){
-				throw new Exception("Illegal theme name.");
-			}
-			$query['-theme'] = basename($query['-theme']);
-		}
-		
-		if ( @$query['-cursor']){
+		if (@$query['-cursor'])
 			$query['-cursor'] = intval($query['-cursor']);
-		}
-		if ( @$query['-limit'] ){
+		if (@$query['-limit'])
 			$query['-limit'] = intval($query['-limit']);
-		}
-		if ( @$query['-skip'] ){
+		if (@$query['-skip'])
 			$query['-skip'] = intval($query['-skip']);
-		}
-		if ( @$query['-related-limit'] ){
+		if (@$query['-related-limit'])
 			$query['-related-limit'] = intval($query['-related-limit']);
-		}
-		if ( @$query['-relationship'] ){
-			if ( !preg_match('/^[a-zA-Z0-9_]+$/', $query['-relationship']) ){
-				throw new Exception("Illegal relationship name.");
-			}
-		}
-		
-		
-		
-		
+    
 		$this->rawQuery = $query;
 		
-		if ( !isset( $query['-table'] ) ) $query['-table'] = $this->_conf['default_table'];
-		$this->_currentTable = $query['-table'];
-		
-		
-		if ( !@$query['-action'] ) {
-			$query['-action'] = $this->_conf['default_action'];
-			$this->_conf['using_default_action'] = true;
-		}
-		
 		$query['--original_action'] = $query['-action'];
-		if ( $query['-action'] == 'browse') {
-			if ( isset($query['-relationship']) ){
+		if ($query['-action'] == 'browse') {
+			if (isset($query['-relationship']))
 				$query['-action'] = 'related_records_list';
-			} else if ( isset($query['-new']) and $query['-new']) {
+			else if (isset($query['-new']) and $query['-new'])
 				$query['-action'] = 'new';
-			} else {
-				$query['-action'] = $this->_conf['default_browse_action']; // for backwards compatibility to 0.5.x
-			}
-		} else if ( $query['-action'] == 'find_list' ){
-			$query['-action'] = 'list';
+			else
+				$query['-action'] = $this->_conf['default_browse_action'];
 		}
-		if ( !isset( $query['-cursor'] ) ) $query['-cursor'] = 0;
-		if ( !isset( $query['-skip'] ) ) $query['-skip'] = 0;
-		if ( !isset( $query['-limit'] ) ) $query['-limit'] = $this->_conf['default_limit'];
+    else if ($query['-action'] == 'find_list')
+			$query['-action'] = 'list';
 		
-		if ( !isset( $query['-mode'] ) ) $query['-mode'] = $this->_conf['default_mode'];
-		$this->_query =& $query;
-		
-		
-		if ( isset( $query['--msg'] ) ) {
+		if (isset($query['--msg'])) {
 			$query['--msg'] = preg_replace('#<[^>]*>#','', $query['--msg']);
-			if ( preg_match('/^@@$/', $query['--msg']) ){
-				
-				if ( @$_SESSION['--msg'] ){
+			if (preg_match('/^@@$/', $query['--msg'])) {
+				if (@$_SESSION['--msg']) {
 					$this->addMessage(@$_SESSION['--msg']);
 					unset($_SESSION['--msg']);
 				}
-			} else {
-				
-				$this->addMessage($query['--msg']);
 			}
+      else
+				$this->addMessage($query['--msg']);
 		}
-		
-		
-		
-		
-		if ( isset($query['--error']) and trim($query['--error']) ){
+		if (isset($query['--error']) and trim($query['--error'])) {
 			$query['--error'] = preg_replace('#<[^>]*>#','', $query['--error']);
 			$this->addError(PEAR::raiseError($query['--error']));
 		}
-		
-		// Now allow custom setting of theme
-		if ( isset($query['-theme']) ){
-			if ( !isset($this->_conf['_themes']) ) $this->_conf['_themes'] = array();
-			$this->_conf['_themes'][basename($query['-theme'])] = 'themes/'.basename($query['-theme']);
-		}
-		
-		// Check to see if we should set a custom default preview length
-		if ( isset($query['--default-preview-length']) ){
-			$len = intval($query['--default-preview-length']);
-			if ( $len > 0 && !defined('XATAFACE_DEFAULT_PREVIEW_LENGTH') ){
-				define('XATAFACE_DEFAULT_PREVIEW_LENGTH', $len);
-			}
-		}
-		
-		
+    
+    $defaultQuery = [
+      '-action' => $this->_conf['default_action'],
+      '-cursor' => 0,
+      '-limit'  => $this->_conf['default_limit'],
+      '-mode'   => $this->_conf['default_mode'],
+      '-skip'   => 0,
+      '-table'  => $this->_conf['default_table']
+    ];
+    $query = \array_merge($defaultQuery, $query);
 
+		$this->_query        = $query;
+		$this->_currentTable = $query['-table'];
 	}
 	
 	
@@ -2146,7 +1771,7 @@ END
 		import('Dataface/ActionTool.php');
 		import('Dataface/PermissionsTool.php');
 		import('Dataface/Table.php');
-		
+    
 		if ( isset($this->_conf['_modules']) and count($this->_conf['_modules']) > 0 ){
 			$mt = Dataface_ModuleTool::getInstance();
 			foreach ($this->_conf['_modules'] as $modname=>$modpath){
